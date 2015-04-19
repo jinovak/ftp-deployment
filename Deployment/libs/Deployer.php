@@ -88,6 +88,11 @@ class Deployer
 			$runBefore[is_string($job) && preg_match('#^local:#', $job)][] = $job;
 		}
 
+		$runAfter = [NULL, NULL];
+		foreach ($this->runAfter as $job) {
+			$runAfter[is_string($job) && preg_match('#^local:#', $job)][] = $job;
+		}
+
 		if ($runBefore[1]) {
 			$this->logger->log("\nLocal-jobs:");
 			$this->runJobs($runBefore[1]);
@@ -116,6 +121,13 @@ class Deployer
 
 		if (!$toUpload && !$toDelete) {
 			$this->logger->log('Already synchronized.', 'lime');
+
+			if ($runAfter[1]) {
+				$this->logger->log("\nLocal-jobs:");
+				$this->runJobs($runAfter[1]);
+				$this->logger->log('');
+			}
+
 			return;
 
 		} elseif ($this->testMode) {
@@ -124,6 +136,13 @@ class Deployer
 			if (isset($deploymentFile)) {
 				unlink($deploymentFile);
 			}
+
+			if ($runAfter[1]) {
+				$this->logger->log("\nLocal-jobs:");
+				$this->runJobs($runAfter[1]);
+				$this->logger->log('');
+			}
+
 			return;
 		}
 
