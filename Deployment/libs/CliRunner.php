@@ -49,7 +49,7 @@ class CliRunner
 
 		if (!is_dir($tempDir = $config['tempdir'])) {
 			$this->logger->log("Creating temporary directory $tempDir");
-			mkdir($tempDir);
+			mkdir($tempDir, 0777, TRUE);
 		}
 
 		$time = time();
@@ -95,7 +95,7 @@ class CliRunner
 	private function createDeployer($config)
 	{
 		$config = array_change_key_case($config, CASE_LOWER) + [
-			'local' => dirname($this->configFile),
+			'local' => '',
 			'passivemode' => TRUE,
 			'ignore' => '',
 			'allowdelete' => TRUE,
@@ -113,16 +113,23 @@ class CliRunner
 			? new SshServer($config['remote'])
 			: new FtpServer($config['remote'], (bool) $config['passivemode']);
 
+		if (!preg_match('#/|\\\\|[a-z]:#iA', $config['local'])) {
+			if ($config['local'] && getcwd() !== dirname($this->configFile)) {
+				$this->logger->log('WARNING: the "local" path is now relative to the directory where ' . basename($this->configFile) . ' is placed', 'red');
+			}
+			$config['local'] = dirname($this->configFile) . '/' . $config['local'];
+		}
+
 		$deployment = new Deployer($server, $config['local'], $this->logger);
 
 		if ($config['preprocess']) {
 			$deployment->preprocessMasks = $config['preprocess'] == 1 ? ['*.js', '*.css'] : self::toArray($config['preprocess']); // intentionally ==
 			$preprocessor = new Preprocessor($this->logger);
 			$deployment->addFilter('js', [$preprocessor, 'expandApacheImports']);
-			$deployment->addFilter('js', [$preprocessor, 'compress'], TRUE);
+			$deployment->addFilter('js', [$preprocessor, 'compressJs'], TRUE);
 			$deployment->addFilter('css', [$preprocessor, 'expandApacheImports']);
 			$deployment->addFilter('css', [$preprocessor, 'expandCssImports']);
-			$deployment->addFilter('css', [$preprocessor, 'compress'], TRUE);
+			$deployment->addFilter('css', [$preprocessor, 'compressCss'], TRUE);
 		}
 
 		$deployment->ignoreMasks = array_merge(
@@ -164,7 +171,7 @@ class CliRunner
 	{
 		$cmd = new CommandLine(<<<XX
 
-FTP deployment v2.1
+FTP deployment v2.2
 -------------------
 Usage:
 	deployment.php <config_file> [-t | --test]

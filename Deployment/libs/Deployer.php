@@ -129,7 +129,9 @@ class Deployer
 
 		$this->logger->log("Creating remote file $this->deploymentFile.running");
 		$root = $this->server->getDir();
-		$this->server->writeFile(tempnam($this->tempDir, 'deploy'), $runningFile = "$root/$this->deploymentFile.running");
+		$runningFile = "$root/$this->deploymentFile.running";
+		$this->server->createDir(str_replace('\\', '/', dirname($runningFile)));
+		$this->server->writeFile(tempnam($this->tempDir, 'deploy'), $runningFile);
 
 		if ($runBefore[0]) {
 			$this->logger->log("\nBefore-jobs:");
@@ -215,7 +217,9 @@ class Deployer
 		foreach ($localFiles as $k => $v) {
 			$s .= "$v=$k\n";
 		}
-		file_put_contents($file = $this->local . '/' . $this->deploymentFile, gzdeflate($s, 9));
+		$file = $this->local . '/' . $this->deploymentFile;
+		@mkdir(dirname($file)); // @ dir may exists
+		file_put_contents($file, gzdeflate($s, 9));
 		return $file;
 	}
 
@@ -317,7 +321,7 @@ class Deployer
 				$list += $this->collectFiles($short);
 
 			} elseif (is_file($path)) {
-				$list[$short] = md5_file($this->preprocess($path));
+				$list[$short] = self::hashFile($this->preprocess($path));
 			}
 		}
 		$iterator->close();
@@ -387,6 +391,25 @@ class Deployer
 			} else {
 				throw new \InvalidArgumentException("Invalid job $job.");
 			}
+		}
+	}
+
+
+	/**
+	 * Computes hash.
+	 * @param  string
+	 * @return string
+	 */
+	public static function hashFile($file)
+	{
+		if (filesize($file) > 5e6) {
+			return md5_file($file);
+		} else {
+			$s = file_get_contents($file);
+			if (preg_match('#^[\x09\x0A\x0D\x20-\x7E\x80-\xFF]*+\z#', $s)) {
+				$s = str_replace("\r\n", "\n", $s);
+			}
+			return md5($s);
 		}
 	}
 
